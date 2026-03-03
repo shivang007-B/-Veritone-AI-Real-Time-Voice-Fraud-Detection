@@ -6,12 +6,20 @@
             "config": {
                 "runtime": "python3.9"
             }
+        },
+        {
+            "src": "public/**",
+            "use": "@vercel/static"
         }
     ],
     "rewrites": [
         {
-            "source": "/(.*)",
+            "source": "/api/(.*)",
             "destination": "/api/index"
+        },
+        {
+            "source": "/(.*)",
+            "destination": "/public/index.html"
         }
     ]
 }
