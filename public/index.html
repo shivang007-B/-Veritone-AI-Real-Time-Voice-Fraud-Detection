@@ -1,0 +1,1506 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Veritone AI — Voice Deepfake Detection</title>
+    <meta name="description"
+        content="Detect AI-generated deepfake voices in real-time. Veritone AI analyzes audio patterns to classify voices as Human or AI-Generated with high confidence.">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap"
+        rel="stylesheet">
+    <style>
+        *,
+        *::before,
+        *::after {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg: #050508;
+            --glass: rgba(255, 255, 255, 0.03);
+            --glass-border: rgba(255, 255, 255, 0.08);
+            --glass-hover: rgba(255, 255, 255, 0.06);
+            --orange: #f97316;
+            --orange-dim: #ea580c;
+            --orange-glow: rgba(249, 115, 22, 0.4);
+            --orange-soft: rgba(249, 115, 22, 0.08);
+            --red: #ef4444;
+            --red-glow: rgba(239, 68, 68, 0.15);
+            --green: #22c55e;
+            --green-glow: rgba(34, 197, 94, 0.2);
+            --blue: #3b82f6;
+            --blue-glow: rgba(59, 130, 246, 0.15);
+            --purple: #a855f7;
+            --text: #f1f1f5;
+            --text-dim: #94949e;
+            --text-muted: #55556a;
+            --font: 'Inter', -apple-system, sans-serif;
+            --mono: 'JetBrains Mono', monospace;
+            --radius: 2rem;
+            --radius-sm: 1.2rem;
+        }
+
+        body {
+            font-family: var(--font);
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        ::selection {
+            background: rgba(249, 115, 22, 0.3);
+        }
+
+        /* ====== Ambient Background ====== */
+        .ambient {
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            pointer-events: none;
+            overflow: hidden;
+        }
+
+        .ambient-orb {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(120px);
+            animation: orbFloat 20s ease-in-out infinite;
+        }
+
+        .ambient-orb.orange {
+            width: 500px;
+            height: 500px;
+            top: -15%;
+            left: -5%;
+            background: radial-gradient(circle, rgba(249, 115, 22, 0.12), transparent 70%);
+        }
+
+        .ambient-orb.blue {
+            width: 400px;
+            height: 400px;
+            bottom: -10%;
+            right: -5%;
+            background: radial-gradient(circle, rgba(59, 130, 246, 0.08), transparent 70%);
+            animation-delay: -10s;
+        }
+
+        .ambient-orb.purple {
+            width: 300px;
+            height: 300px;
+            top: 40%;
+            right: 20%;
+            background: radial-gradient(circle, rgba(168, 85, 247, 0.06), transparent 70%);
+            animation-delay: -5s;
+        }
+
+        @keyframes orbFloat {
+
+            0%,
+            100% {
+                transform: translate(0, 0) scale(1);
+            }
+
+            33% {
+                transform: translate(30px, -20px) scale(1.05);
+            }
+
+            66% {
+                transform: translate(-20px, 15px) scale(0.95);
+            }
+        }
+
+        /* Grid noise overlay */
+        .ambient::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background-image:
+                linear-gradient(rgba(255, 255, 255, 0.012) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 255, 255, 0.012) 1px, transparent 1px);
+            background-size: 80px 80px;
+        }
+
+        /* ====== Container ====== */
+        .container {
+            position: relative;
+            z-index: 1;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        /* ====== Header ====== */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 24px 0;
+            margin-bottom: 16px;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            text-decoration: none;
+        }
+
+        .brand-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, var(--orange), var(--orange-dim));
+            box-shadow: 0 0 24px var(--orange-glow), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+        }
+
+        .brand-icon svg {
+            width: 22px;
+            height: 22px;
+            fill: white;
+        }
+
+        .brand-name {
+            font-size: 1.5rem;
+            font-weight: 900;
+            letter-spacing: -1px;
+            text-transform: uppercase;
+            font-style: italic;
+            color: white;
+        }
+
+        .brand-name span {
+            color: var(--orange);
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .header-link {
+            font-size: 0.82rem;
+            font-weight: 500;
+            color: var(--text-dim);
+            text-decoration: none;
+            transition: color 0.2s;
+            cursor: pointer;
+        }
+
+        .header-link:hover {
+            color: var(--orange);
+        }
+
+        .header-btn {
+            font-size: 0.8rem;
+            font-weight: 500;
+            padding: 8px 18px;
+            border-radius: 50px;
+            background: var(--glass);
+            border: 1px solid var(--glass-border);
+            color: var(--text);
+            cursor: pointer;
+            font-family: inherit;
+            backdrop-filter: blur(12px);
+            transition: all 0.3s;
+        }
+
+        .header-btn:hover {
+            background: var(--glass-hover);
+            border-color: var(--orange);
+            color: var(--orange);
+        }
+
+        .status-pill {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            padding: 6px 14px;
+            border-radius: 50px;
+            background: var(--green-glow);
+            border: 1px solid rgba(34, 197, 94, 0.2);
+            color: var(--green);
+        }
+
+        .status-pill .dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--green);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.4;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .header-link {
+                display: none;
+            }
+        }
+
+        /* ====== Bento Grid ====== */
+        .bento {
+            display: grid;
+            grid-template-columns: repeat(12, 1fr);
+            grid-auto-rows: 100px;
+            gap: 16px;
+            margin-bottom: 40px;
+        }
+
+        @media (max-width: 900px) {
+            .bento {
+                grid-template-columns: 1fr;
+                grid-auto-rows: auto;
+            }
+
+            .bento>* {
+                grid-column: auto !important;
+                grid-row: auto !important;
+            }
+        }
+
+        /* ====== Glass Tile ====== */
+        .tile {
+            background: var(--glass);
+            backdrop-filter: blur(20px) saturate(1.2);
+            -webkit-backdrop-filter: blur(20px) saturate(1.2);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius);
+            padding: 28px;
+            position: relative;
+            overflow: hidden;
+            transition: border-color 0.4s, background 0.4s, transform 0.3s;
+        }
+
+        .tile:hover {
+            border-color: rgba(255, 255, 255, 0.12);
+            background: var(--glass-hover);
+        }
+
+        /* Inner glow on hover */
+        .tile::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: inherit;
+            opacity: 0;
+            transition: opacity 0.4s;
+            background: radial-gradient(ellipse at 50% 0%, rgba(249, 115, 22, 0.06), transparent 60%);
+        }
+
+        .tile:hover::before {
+            opacity: 1;
+        }
+
+        /* ====== Hero Tile (main scanner) ====== */
+        .tile-hero {
+            grid-column: span 8;
+            grid-row: span 4;
+        }
+
+        .tile-hero .hero-bg-icon {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            opacity: 0.04;
+            transition: opacity 0.4s;
+        }
+
+        .tile-hero:hover .hero-bg-icon {
+            opacity: 0.08;
+        }
+
+        .scanner-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.68rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: var(--orange);
+            margin-bottom: 12px;
+        }
+
+        .scanner-badge .blink {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--orange);
+            animation: pulse 1.5s infinite;
+        }
+
+        .hero-title {
+            font-size: clamp(2rem, 4vw, 3.2rem);
+            font-weight: 800;
+            color: white;
+            line-height: 1.1;
+            letter-spacing: -1.5px;
+            margin-bottom: 32px;
+            max-width: 440px;
+        }
+
+        .hero-title .gradient {
+            background: linear-gradient(135deg, var(--orange), #fbbf24, var(--red));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-size: 200% 200%;
+            animation: gradientShift 4s ease infinite;
+        }
+
+        @keyframes gradientShift {
+
+            0%,
+            100% {
+                background-position: 0% 50%;
+            }
+
+            50% {
+                background-position: 100% 50%;
+            }
+        }
+
+        /* Upload Zone */
+        .upload-zone {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border: 2px dashed rgba(255, 255, 255, 0.08);
+            border-radius: var(--radius-sm);
+            background: rgba(255, 255, 255, 0.01);
+            cursor: pointer;
+            position: relative;
+            transition: all 0.4s;
+            min-height: 180px;
+        }
+
+        .upload-zone:hover,
+        .upload-zone.dragover {
+            border-color: rgba(249, 115, 22, 0.4);
+            background: rgba(249, 115, 22, 0.02);
+        }
+
+        .upload-zone input[type="file"] {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            cursor: pointer;
+            z-index: 2;
+        }
+
+        .upload-icon-wrap {
+            width: 60px;
+            height: 60px;
+            border-radius: 18px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--glass-border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 14px;
+            transition: transform 0.3s, background 0.3s;
+        }
+
+        .upload-zone:hover .upload-icon-wrap {
+            transform: scale(1.1);
+            background: var(--orange-soft);
+        }
+
+        .upload-icon-wrap svg {
+            width: 24px;
+            height: 24px;
+            stroke: var(--text-dim);
+            fill: none;
+            stroke-width: 2;
+            transition: stroke 0.3s;
+        }
+
+        .upload-zone:hover .upload-icon-wrap svg {
+            stroke: var(--orange);
+        }
+
+        .upload-label {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-dim);
+            margin-bottom: 4px;
+        }
+
+        .upload-sub {
+            font-size: 0.78rem;
+            color: var(--text-muted);
+        }
+
+        /* File selected state */
+        .file-selected {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            width: 100%;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-sm);
+            padding: 14px 18px;
+            margin-top: 14px;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(8px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .file-selected svg {
+            width: 18px;
+            height: 18px;
+            stroke: var(--orange);
+            fill: none;
+            stroke-width: 2;
+            flex-shrink: 0;
+        }
+
+        .file-selected .name {
+            flex: 1;
+            font-size: 0.85rem;
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .file-selected .remove {
+            font-size: 0.72rem;
+            font-weight: 600;
+            color: var(--red);
+            cursor: pointer;
+            background: none;
+            border: none;
+            font-family: inherit;
+        }
+
+        .file-selected .remove:hover {
+            text-decoration: underline;
+        }
+
+        /* Language Pills */
+        .lang-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 16px;
+            flex-wrap: wrap;
+        }
+
+        .lang-pill {
+            font-size: 0.72rem;
+            font-weight: 500;
+            padding: 6px 14px;
+            border-radius: 50px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            color: var(--text-dim);
+            cursor: pointer;
+            transition: all 0.3s;
+            font-family: inherit;
+        }
+
+        .lang-pill:hover {
+            border-color: var(--orange);
+            color: var(--orange);
+            background: var(--orange-soft);
+        }
+
+        .lang-pill.active {
+            background: var(--orange-soft);
+            border-color: rgba(249, 115, 22, 0.4);
+            color: var(--orange);
+            font-weight: 600;
+        }
+
+        /* Analyze Button */
+        .btn-scan {
+            width: 100%;
+            padding: 16px;
+            margin-top: 18px;
+            border: none;
+            border-radius: 14px;
+            font-family: inherit;
+            font-size: 0.9rem;
+            font-weight: 700;
+            cursor: pointer;
+            color: white;
+            position: relative;
+            overflow: hidden;
+            background: linear-gradient(135deg, var(--orange), var(--orange-dim), #dc2626);
+            background-size: 200% 200%;
+            animation: gradientShift 3s ease infinite;
+            box-shadow: 0 4px 24px var(--orange-glow);
+            transition: transform 0.2s, box-shadow 0.3s;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .btn-scan:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 32px rgba(249, 115, 22, 0.5);
+        }
+
+        .btn-scan:active {
+            transform: translateY(0);
+        }
+
+        .btn-scan:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-scan .shimmer {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.12), transparent);
+            animation: shimmer 2.5s infinite;
+        }
+
+        @keyframes shimmer {
+            0% {
+                transform: translateX(-100%);
+            }
+
+            100% {
+                transform: translateX(100%);
+            }
+        }
+
+        .hero-content {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* ====== Language Tile ====== */
+        .tile-lang {
+            grid-column: span 4;
+            grid-row: span 2;
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.08), rgba(168, 85, 247, 0.08));
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .tile-lang .tile-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+
+        .tile-lang .tile-top svg {
+            width: 32px;
+            height: 32px;
+            stroke: var(--blue);
+            fill: none;
+            stroke-width: 1.5;
+        }
+
+        .tile-tag {
+            font-size: 0.6rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            padding: 4px 10px;
+            border-radius: 6px;
+            background: rgba(59, 130, 246, 0.1);
+            border: 1px solid rgba(59, 130, 246, 0.2);
+            color: var(--blue);
+        }
+
+        .tile-lang h3 {
+            font-size: 1.1rem;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+
+        .tile-lang .lang-chips {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .tile-lang .chip {
+            font-size: 0.68rem;
+            padding: 4px 12px;
+            border-radius: 50px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            color: var(--text-dim);
+        }
+
+        /* ====== Security Tile ====== */
+        .tile-security {
+            grid-column: span 4;
+            grid-row: span 2;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            cursor: pointer;
+        }
+
+        .tile-security .tile-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .tile-security .tile-top svg {
+            width: 24px;
+            height: 24px;
+            stroke: var(--text-dim);
+            fill: none;
+            stroke-width: 2;
+            transition: stroke 0.3s;
+        }
+
+        .tile-security:hover .lock-icon {
+            stroke: var(--green);
+        }
+
+        .tile-security .arrow {
+            transition: transform 0.3s;
+        }
+
+        .tile-security:hover .arrow {
+            transform: translateX(4px);
+        }
+
+        .tile-security h3 {
+            font-size: 1.1rem;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+
+        .tile-security p {
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            line-height: 1.5;
+        }
+
+        /* ====== Result Tile ====== */
+        .tile-result {
+            grid-column: span 12;
+            grid-row: span 3;
+            display: flex;
+            gap: 28px;
+            align-items: stretch;
+        }
+
+        @media (max-width: 900px) {
+            .tile-result {
+                flex-direction: column;
+            }
+        }
+
+        .result-main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .result-label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.68rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: var(--text-muted);
+            margin-bottom: 12px;
+        }
+
+        .result-label svg {
+            width: 14px;
+            height: 14px;
+            stroke: var(--text-muted);
+            fill: none;
+            stroke-width: 2;
+        }
+
+        /* Empty state */
+        .result-empty {
+            color: var(--text-muted);
+            font-size: 0.88rem;
+            font-style: italic;
+            line-height: 1.7;
+        }
+
+        /* Analyzing wave */
+        .wave-container {
+            display: flex;
+            align-items: center;
+            gap: 3px;
+            height: 64px;
+            justify-content: center;
+            margin: 20px 0;
+        }
+
+        .wave-bar {
+            width: 4px;
+            border-radius: 4px;
+            background: var(--orange);
+            animation: waveAnim 1s ease-in-out infinite;
+        }
+
+        @keyframes waveAnim {
+
+            0%,
+            100% {
+                height: 6px;
+                opacity: 0.3;
+            }
+
+            50% {
+                height: 50px;
+                opacity: 1;
+            }
+        }
+
+        .analyzing-label {
+            text-align: center;
+            font-size: 0.82rem;
+            color: var(--orange);
+            font-weight: 600;
+            animation: pulse 1.5s infinite;
+        }
+
+        .step-list {
+            list-style: none;
+            margin-top: 16px;
+        }
+
+        .step-list li {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            padding: 5px 0;
+            opacity: 0;
+            animation: fadeIn 0.4s forwards;
+        }
+
+        .step-list li.active {
+            color: var(--orange);
+        }
+
+        .step-list li.done {
+            color: var(--green);
+        }
+
+        .step-list li .icon {
+            font-size: 0.7rem;
+            width: 16px;
+            text-align: center;
+        }
+
+        @keyframes fadeIn {
+            to {
+                opacity: 1;
+            }
+        }
+
+        /* Result data */
+        .result-data {
+            animation: slideIn 0.5s ease;
+        }
+
+        .result-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 18px;
+            border-radius: 50px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 16px;
+        }
+
+        .result-badge.ai {
+            background: var(--red-glow);
+            color: var(--red);
+            border: 1px solid rgba(239, 68, 68, 0.25);
+        }
+
+        .result-badge.human {
+            background: var(--green-glow);
+            color: var(--green);
+            border: 1px solid rgba(34, 197, 94, 0.25);
+        }
+
+        .result-badge svg {
+            width: 14px;
+            height: 14px;
+            fill: currentColor;
+        }
+
+        .result-score {
+            font-size: 3.5rem;
+            font-weight: 900;
+            font-family: var(--mono);
+            letter-spacing: -2px;
+            line-height: 1;
+            margin-bottom: 6px;
+        }
+
+        .result-score.ai {
+            color: var(--red);
+            text-shadow: 0 0 40px var(--red-glow);
+        }
+
+        .result-score.human {
+            color: var(--green);
+            text-shadow: 0 0 40px var(--green-glow);
+        }
+
+        .result-class {
+            font-size: 1rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            margin-bottom: 20px;
+        }
+
+        .result-class.ai {
+            color: var(--red);
+        }
+
+        .result-class.human {
+            color: var(--green);
+        }
+
+        .explanation-box {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-sm);
+            padding: 16px;
+            margin-top: 8px;
+        }
+
+        .explanation-title {
+            font-size: 0.65rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .explanation-title svg {
+            width: 12px;
+            height: 12px;
+            stroke: currentColor;
+            fill: none;
+            stroke-width: 2;
+        }
+
+        .explanation-text {
+            font-size: 0.82rem;
+            color: var(--text-dim);
+            line-height: 1.7;
+        }
+
+        .feature-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 14px;
+        }
+
+        .feature-chip {
+            font-size: 0.68rem;
+            font-weight: 500;
+            padding: 5px 12px;
+            border-radius: 50px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--glass-border);
+            color: var(--text-dim);
+        }
+
+        /* Sidebar metrics panel */
+        .result-sidebar {
+            width: 240px;
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        @media (max-width: 900px) {
+            .result-sidebar {
+                width: 100%;
+                flex-direction: row;
+                flex-wrap: wrap;
+            }
+        }
+
+        .metric-card {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--glass-border);
+            border-radius: 14px;
+            padding: 16px;
+            flex: 1;
+        }
+
+        .metric-label {
+            font-size: 0.65rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: var(--text-muted);
+            margin-bottom: 6px;
+        }
+
+        .metric-value {
+            font-size: 1.6rem;
+            font-weight: 800;
+            font-family: var(--mono);
+            color: var(--orange);
+        }
+
+        .metric-sub {
+            font-size: 0.68rem;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        /* Confidence bar */
+        .conf-bar-wrap {
+            margin-top: 8px;
+        }
+
+        .conf-bar {
+            height: 4px;
+            background: rgba(255, 255, 255, 0.06);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .conf-fill {
+            height: 100%;
+            border-radius: 2px;
+            transition: width 1.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .conf-fill.ai {
+            background: linear-gradient(90deg, var(--orange), var(--red));
+        }
+
+        .conf-fill.human {
+            background: linear-gradient(90deg, var(--green), #4ade80);
+        }
+
+        /* ====== Stats Row ====== */
+        .stats-row {
+            grid-column: span 12;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+        }
+
+        @media (max-width: 768px) {
+            .stats-row {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        .stat {
+            background: var(--glass);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-sm);
+            padding: 20px;
+            text-align: center;
+            backdrop-filter: blur(12px);
+            transition: border-color 0.3s;
+        }
+
+        .stat:hover {
+            border-color: rgba(249, 115, 22, 0.3);
+        }
+
+        .stat-val {
+            font-size: 1.5rem;
+            font-weight: 800;
+            font-family: var(--mono);
+            color: var(--orange);
+        }
+
+        .stat-lbl {
+            font-size: 0.68rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-top: 4px;
+        }
+
+        /* ====== Footer ====== */
+        .footer {
+            text-align: center;
+            padding: 28px 0;
+            margin-top: 8px;
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .footer a {
+            color: var(--orange);
+            text-decoration: none;
+        }
+
+        .footer a:hover {
+            text-decoration: underline;
+        }
+
+        /* ====== Scrollbar ====== */
+        ::-webkit-scrollbar {
+            width: 5px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Ambient Background -->
+    <div class="ambient">
+        <div class="ambient-orb orange"></div>
+        <div class="ambient-orb blue"></div>
+        <div class="ambient-orb purple"></div>
+    </div>
+
+    <div class="container">
+        <!-- Header -->
+        <header class="header" id="header">
+            <a href="/" class="brand">
+                <div class="brand-icon">
+                    <svg viewBox="0 0 24 24">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                    </svg>
+                </div>
+                <span class="brand-name">Veritone <span>AI</span></span>
+            </a>
+            <div class="header-right">
+                <span class="header-link">Docs</span>
+                <span class="header-link">Metrics</span>
+                <button class="header-btn">API Portal</button>
+                <div class="status-pill" id="statusPill">
+                    <span class="dot" id="statusDot"></span>
+                    <span id="statusText">Checking...</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Bento Grid -->
+        <div class="bento">
+
+            <!-- ===== HERO: Main Analysis Tile ===== -->
+            <div class="tile tile-hero" id="heroTile">
+                <svg class="hero-bg-icon" width="200" height="200" viewBox="0 0 24 24" fill="none"
+                    stroke="var(--orange)" stroke-width="0.5">
+                    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+                </svg>
+                <div class="hero-content">
+                    <div class="scanner-badge">
+                        <span class="blink"></span>
+                        Neural Scanner Active
+                    </div>
+                    <h1 class="hero-title">Trust but <span class="gradient">Verify.</span></h1>
+
+                    <div class="upload-zone" id="uploadZone">
+                        <input type="file" id="audioInput" accept="audio/*">
+                        <div class="upload-icon-wrap">
+                            <svg viewBox="0 0 24 24">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                <polyline points="17 8 12 3 7 8" />
+                                <line x1="12" y1="3" x2="12" y2="15" />
+                            </svg>
+                        </div>
+                        <p class="upload-label">Drop Audio or Click to Verify</p>
+                        <p class="upload-sub">AI vs Human Forensic Analysis</p>
+                    </div>
+
+                    <div id="fileInfo" style="display:none;">
+                        <div class="file-selected">
+                            <svg viewBox="0 0 24 24">
+                                <path d="M9 18V5l12-2v13" />
+                                <circle cx="6" cy="18" r="3" />
+                                <circle cx="18" cy="16" r="3" />
+                            </svg>
+                            <span class="name" id="fileName"></span>
+                            <button class="remove" id="removeFile">Remove</button>
+                        </div>
+                    </div>
+
+                    <div class="lang-row" id="langRow">
+                        <button class="lang-pill active" data-lang="English">English</button>
+                        <button class="lang-pill" data-lang="Hindi">Hindi</button>
+                        <button class="lang-pill" data-lang="Tamil">Tamil</button>
+                        <button class="lang-pill" data-lang="Telugu">Telugu</button>
+                        <button class="lang-pill" data-lang="Malayalam">Malayalam</button>
+                    </div>
+
+                    <button class="btn-scan" id="scanBtn" disabled>
+                        <span class="shimmer"></span>
+                        <span id="btnText">Upload Audio to Begin</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- ===== Language Tile ===== -->
+            <div class="tile tile-lang">
+                <div class="tile-top">
+                    <svg viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" r="10" />
+                        <line x1="2" y1="12" x2="22" y2="12" />
+                        <path
+                            d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+                    </svg>
+                    <span class="tile-tag">Multi-Lingual</span>
+                </div>
+                <div>
+                    <h3>Regional Support</h3>
+                    <div class="lang-chips">
+                        <span class="chip">Hindi</span>
+                        <span class="chip">Tamil</span>
+                        <span class="chip">Telugu</span>
+                        <span class="chip">Malayalam</span>
+                        <span class="chip">English</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ===== Security Tile ===== -->
+            <div class="tile tile-security">
+                <div class="tile-top">
+                    <svg class="lock-icon" viewBox="0 0 24 24">
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                    </svg>
+                    <svg class="arrow" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)"
+                        stroke-width="2">
+                        <polyline points="9 18 15 12 9 6" />
+                    </svg>
+                </div>
+                <div>
+                    <h3>Encrypted Logs</h3>
+                    <p>Data is processed in-memory and instantly purged. Zero persistence for maximum privacy.</p>
+                </div>
+            </div>
+
+            <!-- ===== Result / Forensic Tile ===== -->
+            <div class="tile tile-result" id="resultTile">
+                <div class="result-main" id="resultMain">
+                    <div class="result-label">
+                        <svg viewBox="0 0 24 24">
+                            <circle cx="12" cy="12" r="10" />
+                            <line x1="12" y1="16" x2="12" y2="12" />
+                            <line x1="12" y1="8" x2="12.01" y2="8" />
+                        </svg>
+                        Forensic Analysis
+                    </div>
+                    <div id="resultContent">
+                        <p class="result-empty">Awaiting sample upload... Our engine analyzes over 256 unique acoustic
+                            features to identify non-human vocal resonance.</p>
+                    </div>
+                </div>
+                <div class="result-sidebar" id="resultSidebar">
+                    <div class="metric-card">
+                        <div class="metric-label">Scans</div>
+                        <div class="metric-value" id="metricScans">0</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-label">Latency</div>
+                        <div class="metric-value" id="metricLatency">—</div>
+                        <div class="metric-sub">milliseconds</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-label">Confidence</div>
+                        <div class="metric-value" id="metricConf">—</div>
+                        <div class="conf-bar-wrap">
+                            <div class="conf-bar">
+                                <div class="conf-fill" id="confFill" style="width:0%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ===== Stats Row ===== -->
+            <div class="stats-row">
+                <div class="stat">
+                    <div class="stat-val" id="statTotal">0</div>
+                    <div class="stat-lbl">Total Scans</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-val">5</div>
+                    <div class="stat-lbl">Languages</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-val">&gt;90%</div>
+                    <div class="stat-lbl">Accuracy Target</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-val">&lt;2s</div>
+                    <div class="stat-lbl">Response Time</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer class="footer">
+            Veritone Advanced Systems &mdash; 2026 Forensic Audio Division &middot; Built by <a href="#">Shivang</a>
+        </footer>
+    </div>
+
+    <script>
+        // ====== State ======
+        let selectedFile = null;
+        let selectedLang = 'English';
+        let scanCount = 0;
+        const API_BASE = window.location.origin;
+        const API_KEY = 'hackathon_key_2024';
+
+        // DOM
+        const audioInput = document.getElementById('audioInput');
+        const uploadZone = document.getElementById('uploadZone');
+        const fileInfo = document.getElementById('fileInfo');
+        const fileName = document.getElementById('fileName');
+        const removeFile = document.getElementById('removeFile');
+        const langRow = document.getElementById('langRow');
+        const scanBtn = document.getElementById('scanBtn');
+        const btnText = document.getElementById('btnText');
+        const resultContent = document.getElementById('resultContent');
+        const statusPill = document.getElementById('statusPill');
+        const statusDot = document.getElementById('statusDot');
+        const statusText = document.getElementById('statusText');
+        const metricScans = document.getElementById('metricScans');
+        const metricLatency = document.getElementById('metricLatency');
+        const metricConf = document.getElementById('metricConf');
+        const confFill = document.getElementById('confFill');
+        const statTotal = document.getElementById('statTotal');
+
+        // ====== Health Check ======
+        async function checkHealth() {
+            try {
+                const res = await fetch(`${API_BASE}/api/health`);
+                const data = await res.json();
+                if (data.status === 'healthy') {
+                    statusDot.style.background = 'var(--green)';
+                    statusText.textContent = 'Live';
+                    statusPill.style.background = 'var(--green-glow)';
+                    statusPill.style.borderColor = 'rgba(34,197,94,0.2)';
+                    statusPill.style.color = 'var(--green)';
+                } else { throw new Error(); }
+            } catch {
+                statusDot.style.background = 'var(--red)';
+                statusText.textContent = 'Offline';
+                statusPill.style.background = 'var(--red-glow)';
+                statusPill.style.borderColor = 'rgba(239,68,68,0.2)';
+                statusPill.style.color = 'var(--red)';
+            }
+        }
+        checkHealth();
+
+        // ====== Drag & Drop ======
+        uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('dragover'); });
+        uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('dragover'));
+        uploadZone.addEventListener('drop', e => {
+            e.preventDefault(); uploadZone.classList.remove('dragover');
+            if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+        });
+
+        // ====== File ======
+        audioInput.addEventListener('change', e => { if (e.target.files.length) handleFile(e.target.files[0]); });
+
+        function handleFile(file) {
+            if (file.size > 5 * 1024 * 1024) { alert('File too large. Max 5MB.'); return; }
+            selectedFile = file;
+            fileName.textContent = file.name.length > 30 ? file.name.slice(0, 27) + '...' : file.name;
+            fileInfo.style.display = 'block';
+            uploadZone.style.display = 'none';
+            scanBtn.disabled = false;
+            btnText.textContent = '⚡ Run Deepfake Scan';
+        }
+
+        removeFile.addEventListener('click', () => {
+            selectedFile = null; audioInput.value = '';
+            fileInfo.style.display = 'none';
+            uploadZone.style.display = 'flex';
+            scanBtn.disabled = true;
+            btnText.textContent = 'Upload Audio to Begin';
+        });
+
+        // ====== Language Pills ======
+        langRow.querySelectorAll('.lang-pill').forEach(pill => {
+            pill.addEventListener('click', () => {
+                langRow.querySelectorAll('.lang-pill').forEach(p => p.classList.remove('active'));
+                pill.classList.add('active');
+                selectedLang = pill.dataset.lang;
+            });
+        });
+
+        // ====== Base64 ======
+        function fileToBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result.split(',')[1]);
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+        }
+
+        // ====== Analyzing Animation ======
+        function showAnalyzing() {
+            const steps = [
+                { text: 'Decoding audio stream...', delay: 0 },
+                { text: 'Extracting MFCC features...', delay: 700 },
+                { text: 'Analyzing spectral patterns...', delay: 1400 },
+                { text: 'Running deepfake classifier...', delay: 2100 },
+            ];
+
+            const bars = Array.from({ length: 24 }, (_, i) =>
+                `<div class="wave-bar" style="animation-delay:${(i * 0.06).toFixed(2)}s"></div>`
+            ).join('');
+
+            const stepHTML = steps.map((s, i) =>
+                `<li style="animation-delay:${s.delay}ms" class="${i === 0 ? 'active' : ''}"><span class="icon">◯</span>${s.text}</li>`
+            ).join('');
+
+            resultContent.innerHTML = `
+                <div class="wave-container">${bars}</div>
+                <p class="analyzing-label">Scanning acoustic fingerprints...</p>
+                <ul class="step-list">${stepHTML}</ul>`;
+
+            const items = resultContent.querySelectorAll('.step-list li');
+            steps.forEach((s, i) => {
+                setTimeout(() => {
+                    items.forEach((li, j) => {
+                        li.className = j < i ? 'done' : j === i ? 'active' : '';
+                        if (j < i) li.querySelector('.icon').textContent = '✓';
+                    });
+                }, s.delay + 300);
+            });
+        }
+
+        // ====== Render Result ======
+        function renderResult(data, latency) {
+            const isAI = data.classification === 'AI_GENERATED';
+            const cls = isAI ? 'ai' : 'human';
+            const pct = Math.round(data.confidenceScore * 100);
+            const badgeIcon = isAI
+                ? '<svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>'
+                : '<svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>';
+            const badgeText = isAI ? '⚠ Synthetic Detected' : '✓ Verified Authentic';
+            const classLabel = isAI ? 'Synthetic Match' : 'Human Verified';
+
+            const features = data.features || [];
+            const chipHTML = features.map(f => `<span class="feature-chip">${f}</span>`).join('');
+
+            resultContent.innerHTML = `
+                <div class="result-data">
+                    <span class="result-badge ${cls}">${badgeIcon} ${badgeText}</span>
+                    <div class="result-score ${cls}">${pct}%</div>
+                    <div class="result-class ${cls}">${classLabel}</div>
+                    <div class="explanation-box">
+                        <div class="explanation-title">
+                            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                            Technical Analysis
+                        </div>
+                        <p class="explanation-text">${data.explanation}</p>
+                    </div>
+                    ${chipHTML ? `<div class="feature-chips">${chipHTML}</div>` : ''}
+                </div>`;
+
+            // Update sidebar metrics
+            scanCount++;
+            metricScans.textContent = scanCount;
+            statTotal.textContent = scanCount;
+            metricLatency.textContent = latency;
+            metricConf.textContent = pct + '%';
+            confFill.className = 'conf-fill ' + cls;
+            requestAnimationFrame(() => { requestAnimationFrame(() => { confFill.style.width = pct + '%'; }); });
+        }
+
+        // ====== Scan ======
+        scanBtn.addEventListener('click', async () => {
+            if (!selectedFile) return;
+            scanBtn.disabled = true;
+            btnText.textContent = 'Scanning...';
+            showAnalyzing();
+            const start = performance.now();
+
+            try {
+                const audioBase64 = await fileToBase64(selectedFile);
+                const res = await fetch(`${API_BASE}/api/voice-detection`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'x-api-key': API_KEY },
+                    body: JSON.stringify({ language: selectedLang, audioBase64 })
+                });
+                const data = await res.json();
+                const latency = Math.round(performance.now() - start);
+                setTimeout(() => renderResult(data, latency), 2800);
+            } catch {
+                resultContent.innerHTML = `<p class="result-empty" style="color:var(--red);">API request failed. Ensure the server is running.</p>`;
+            } finally {
+                scanBtn.disabled = false;
+                btnText.textContent = '⚡ Run Deepfake Scan';
+            }
+        });
+    </script>
+</body>
+
+</html>
