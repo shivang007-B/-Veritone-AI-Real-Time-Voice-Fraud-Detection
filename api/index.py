@@ -1,10 +1,11 @@
 # app.py - Voice AI Detection API for Fraud Detection
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify
 import base64
 import random
 import hashlib
+import os
 
-app = Flask(__name__, static_folder='../public')
+app = Flask(__name__)
 
 # Configuration
 SUPPORTED_LANGUAGES = {"Tamil", "English", "Hindi", "Malayalam", "Telugu"}
@@ -100,12 +101,22 @@ def detect_ai_voice(audio_data, language):
         "features": features,
     }
 
+# ====== CORS Support ======
+@app.after_request
+def add_cors_headers(response):
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, x-api-key'
+    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
+    return response
 
-# ====== Frontend Route ======
+
+# ====== Frontend Route (local dev only) ======
 @app.route('/')
 def serve_frontend():
-    """Serve the demo frontend."""
-    return send_from_directory(app.static_folder, 'index.html')
+    """Serve the demo frontend for local development."""
+    public_dir = os.path.join(os.path.dirname(__file__), '..', 'public')
+    from flask import send_from_directory
+    return send_from_directory(public_dir, 'index.html')
 
 
 # ====== API Routes ======
