@@ -12,14 +12,14 @@
             "use": "@vercel/static"
         }
     ],
-    "rewrites": [
+    "routes": [
         {
-            "source": "/api/(.*)",
-            "destination": "/api/index"
+            "src": "/api/(.*)",
+            "dest": "/api/index.py"
         },
         {
-            "source": "/(.*)",
-            "destination": "/public/index.html"
+            "src": "/(.*)",
+            "dest": "/public/index.html"
         }
     ]
 }
